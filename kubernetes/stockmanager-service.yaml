@@ -33,23 +33,28 @@ spec:
         - name: stockmanager
           image: stockmanager:dev
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: stockmanager-db-config
+            - secretRef:
+                name: stockmanager-db-secret
           ports:
             - containerPort: 8030
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8030
             periodSeconds: 10
             failureThreshold: 30
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8030
             initialDelaySeconds: 30
             timeoutSeconds: 1
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: 8030
             initialDelaySeconds: 5
             periodSeconds: 5

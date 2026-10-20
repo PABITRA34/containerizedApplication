@@ -36,5 +36,59 @@ curl.exe -i -H "Host: productcatalogue.local" http://localhost:8080/products
 curl.exe -i -H "Host: shopfront.local" http://localhost:8080/
 ```
 
-The stockmanager probe uses Spring Boot Actuator's `/actuator/health` endpoint;
-the Pod must be Ready for Ingress traffic to reach it.
+The stockmanager startup/liveness probes use Actuator's `/actuator/health/liveness`
+endpoint, and readiness uses `/actuator/health/readiness`, which also checks the
+database connection.
+
+## Configure stockmanager with external PostgreSQL
+
+Stockmanager uses PostgreSQL for Kubernetes deployments. Update
+`kubernetes/stockmanager-configmap.yaml` with the managed database hostname,
+port, database name, and the SSL mode required by your provider. The committed
+values are placeholders and must be replaced before applying the manifest.
+
+The local file `kubernetes/stockmanager-secret.yaml` is Git-ignored. Edit it
+and set `DB_USERNAME` and `DB_PASSWORD` to your database credentials. Do not
+commit or share this file. Apply it before the Deployment:
+
+```powershell
+notepad .\kubernetes\stockmanager-secret.yaml
+kubectl apply -f kubernetes/stockmanager-secret.yaml
+```
+
+Build the updated stockmanager image and load it into the local kind cluster:
+
+```powershell
+mvn -f stockmanager\pom.xml package -DskipTests
+docker build -t stockmanager:dev .\stockmanager
+kind load docker-image stockmanager:dev
+```
+
+Apply the database configuration and stockmanager resources, then check the
+Pod and its logs:
+
+```powershell
+kubectl apply -f kubernetes/stockmanager-configmap.yaml
+kubectl apply -f kubernetes/stockmanager-secret.yaml
+kubectl apply -f kubernetes/stockmanager-service.yaml
+kubectl rollout restart deployment/stockmanager
+kubectl rollout status deployment/stockmanager
+kubectl logs deployment/stockmanager
+```
+
+Repeat the rollout restart after changing ConfigMap values because environment
+variables sourced from a ConfigMap are read when the Pod starts.
+
+The managed database must accept network connections from the Kubernetes
+cluster and have the requested database created. `DB_SSL_MODE=require`
+encrypts the connection; follow your provider's guidance for certificate
+verification in production. The application uses Hibernate `ddl-auto=update`
+to create/update tables for this demo; production deployments should use
+versioned database migrations. Demo stock records are inserted only when the
+database has no stock rows, so restarting the Pod does not overwrite existing
+inventory.
+
+Kubernetes Secrets are not a substitute for a secrets manager: by default,
+their values are base64-encoded, not encrypted. Restrict cluster access and
+enable encryption at rest or use your platform's secret-management integration
+for production.

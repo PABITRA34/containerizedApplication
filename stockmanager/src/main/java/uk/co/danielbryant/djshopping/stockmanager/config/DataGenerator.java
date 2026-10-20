@@ -25,6 +25,11 @@ public class DataGenerator {
     @PostConstruct
     @Transactional
     public void init() {
+        if (stockRepository.count() > 0) {
+            LOGGER.info("Existing stock data found; skipping demo data generation");
+            return;
+        }
+
         LOGGER.info("Generating synthetic data for demonstration purposes...");
 
         stockRepository.save(new Stock("1", "12345678", 5));
